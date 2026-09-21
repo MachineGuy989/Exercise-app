@@ -1,6 +1,6 @@
 /* Offline support for the exercise app.
  * It only handles files inside its own folder and only touches caches named "mikeExercise-...". */
-var CACHE = 'mikeExercise-v1';
+var CACHE = 'mikeExercise-v2';
 var FILES = ['./', 'index.html', 'styles.css', 'data.js', 'core.js', 'app.js',
   'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 

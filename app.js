@@ -126,19 +126,55 @@
 
   /* ================= sound (Web Audio) ================= */
 
-  var audio = { ctx: null };
+  var audio = { ctx: null, lastError: '' };
 
+  /* Tell iPhone these are short alert sounds that should be heard (not held back by the
+     ringer switch) and that should sit on top of other audio such as music. */
+  function setAudioSession() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'transient'; } catch (e) { audio.lastError = String(e); }
+  }
+
+  /* Must be called from a tap. Creates the audio engine and wakes it up. */
   function unlockAudio() {
     try {
-      if (!audio.ctx) {
-        var AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) audio.ctx = new AC();
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!audio.ctx && AC) {
+        audio.ctx = new AC();
+        audio.ctx.onstatechange = showSoundStatus;
       }
-      if (audio.ctx && audio.ctx.state !== 'running') audio.ctx.resume();
-    } catch (e) { /* no sound is fine: everything also shows on screen */ }
+      setAudioSession();
+      var c = audio.ctx;
+      if (c) {
+        if (c.state !== 'running' && c.resume) {
+          var pr = c.resume();
+          if (pr && pr.then) pr.then(showSoundStatus, function (e) { audio.lastError = String(e); showSoundStatus(); });
+        }
+        /* iPhone also wants a real (silent) sound started during the tap */
+        if (c.createBuffer && c.createBufferSource) {
+          var src = c.createBufferSource();
+          src.buffer = c.createBuffer(1, 1, 22050);
+          src.connect(c.destination);
+          src.start(0);
+        }
+      }
+    } catch (e) { audio.lastError = String(e); }
+    showSoundStatus();
   }
   document.addEventListener('touchend', unlockAudio, { passive: true });
   document.addEventListener('click', unlockAudio, { passive: true });
+
+  /* Run fn once the audio engine is really running (waking it first if the phone put it to sleep) */
+  function whenAudioReady(fn) {
+    var c = audio.ctx;
+    if (!c) return;
+    function go() { try { fn(); } catch (e) { audio.lastError = String(e); } showSoundStatus(); }
+    if (c.state === 'running') { go(); return; }
+    try {
+      var pr = c.resume();
+      if (pr && pr.then) pr.then(go, function (e) { audio.lastError = String(e); showSoundStatus(); });
+      else go();
+    } catch (e) { audio.lastError = String(e); }
+  }
 
   function tone(freq, startAt, dur, vol) {
     var ctx = audio.ctx;
@@ -152,13 +188,20 @@
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(t0); osc.stop(t0 + dur + 0.05);
   }
-  function beep() {
-    if (store.data.prefs.mute || !audio.ctx) return;
-    try { tone(880, 0, 0.14, 0.4); } catch (e) { /* ignore */ }
+  function playBeep() { tone(880, 0, 0.16, 0.7); }
+  function playChime() { tone(660, 0, 0.3, 0.8); tone(880, 0.28, 0.3, 0.8); tone(1320, 0.56, 0.8, 0.8); }
+  function beep() { if (!store.data.prefs.mute) whenAudioReady(playBeep); }
+  function chime() { if (!store.data.prefs.mute) whenAudioReady(playChime); }
+
+  function soundStatusText() {
+    var engine = !audio.ctx ? 'not started yet (tap Test sound)' : audio.ctx.state;
+    var session = navigator.audioSession ? navigator.audioSession.type : 'not available on this phone';
+    return 'Sound engine: ' + engine + '. Alert mode: ' + session + '. In this app, sound is ' +
+      (store.data.prefs.mute ? 'OFF' : 'ON') + '.' + (audio.lastError ? ' Problem: ' + audio.lastError : '');
   }
-  function chime() {
-    if (store.data.prefs.mute || !audio.ctx) return;
-    try { tone(660, 0, 0.3, 0.5); tone(880, 0.28, 0.3, 0.5); tone(1320, 0.56, 0.7, 0.5); } catch (e) { /* ignore */ }
+  function showSoundStatus() {
+    var e = document.getElementById('sound-status');
+    if (e) e.textContent = soundStatusText();
   }
 
   /* ================= keep the screen awake ================= */
@@ -744,6 +787,21 @@
           toast('Everything was reset.');
         });
       } })));
+    var soundBtn = btn('', { fid: 'sound-toggle', onclick: function () {
+      store.data.prefs.mute = !store.data.prefs.mute; save();
+      soundBtn.textContent = store.data.prefs.mute ? 'Sound is OFF - tap to turn on' : 'Sound is ON - tap to turn off';
+      showSoundStatus();
+    } });
+    soundBtn.textContent = store.data.prefs.mute ? 'Sound is OFF - tap to turn on' : 'Sound is ON - tap to turn off';
+    var soundCard = card('Sound check', 'Timers beep for the last 3 seconds and chime at the end. Tap the button and you should hear a beep, then a chime. If you hear nothing, turn up the volume with the side buttons while this page is open, and check the ring/silent switch.');
+    soundCard.appendChild(el('div', { class: 'btn-row' },
+      btn('Test sound', { kind: 'navy', fid: 'sound-test', onclick: function () {
+        unlockAudio();
+        whenAudioReady(function () { tone(880, 0, 0.16, 0.7); tone(660, 0.6, 0.3, 0.8); tone(880, 0.88, 0.3, 0.8); tone(1320, 1.16, 0.8, 0.8); });
+        showSoundStatus();
+      } }), soundBtn));
+    soundCard.appendChild(el('p', { class: 'hint', id: 'sound-status' }, soundStatusText()));
+    main.appendChild(soundCard);
     main.appendChild(el('p', { class: 'hint' }, 'Tip: after you add this app to your Home Screen, always open it from the Home Screen icon so your progress stays in one place.'));
   }
 
@@ -832,6 +890,7 @@
 
     refs.mute = el('button', { type: 'button', class: 'mute', 'data-fid': 'g-mute', onclick: function () {
       store.data.prefs.mute = !store.data.prefs.mute; save(); refs.mute.textContent = muteLabel(); refs.mute.setAttribute('aria-label', muteName());
+      if (!store.data.prefs.mute) { unlockAudio(); beep(); }
     }, 'aria-label': muteName() }, muteLabel());
     screen.appendChild(el('div', { class: 'g-top' }, el('div', { class: 'g-title' }, block.title),
       el('div', { class: 'right' }, refs.mute, el('button', { type: 'button', class: 'safety-btn', 'data-fid': 'g-safety', onclick: showSafety }, '⚠ Safety'))));

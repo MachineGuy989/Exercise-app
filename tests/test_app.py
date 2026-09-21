@@ -37,6 +37,18 @@ class FakeCtx {
 }
 window.AudioContext = FakeCtx; window.webkitAudioContext = FakeCtx;
 """
+# A phone whose audio is asleep until it is woken up by resume(), and which reports an audio session
+AUDIO_SLEEPY = """
+window.__tones = []; window.__resumes = 0;
+class SleepyCtx {
+  constructor(){ this.state='suspended'; this.currentTime=0; this.destination={}; window.__ctx = this; }
+  resume(){ window.__resumes++; this.state='running'; if(this.onstatechange) this.onstatechange(); return Promise.resolve(); }
+  createGain(){ return { gain:{ setValueAtTime(){}, exponentialRampToValueAtTime(){} }, connect(){} }; }
+  createOscillator(){ const o={ frequency:{value:0}, type:'', connect(){}, start(t){ window.__tones.push({f:o.frequency.value}); }, stop(t){} }; return o; }
+}
+window.AudioContext = SleepyCtx; window.webkitAudioContext = SleepyCtx;
+Object.defineProperty(navigator, 'audioSession', { configurable: true, value: { type: 'auto' } });
+"""
 WAKE_MOCK = """
 window.__locks = [];
 Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: {
@@ -697,6 +709,44 @@ def finish_block(page, until_finished=True, skip_first=False):
 
 
 @test
+def sound_wakes_up_sleeping_audio_and_sets_alert_mode(p):
+    s = Session(p, scripts=[AUDIO_SLEEPY], pause=True); s.consent(); page = s.page
+    page.click('[data-fid=go-cooldown]')
+    ok(page.evaluate('navigator.audioSession.type') == 'transient', 'audio session set to a short-alert mode')
+    ok(page.evaluate('window.__resumes') >= 1, 'audio engine woken by the tap')
+    # the phone puts audio to sleep again (for example after a phone call); the next cue must wake it first
+    first = page.evaluate('window.__resumes')
+    page.evaluate("window.__ctx.state = 'suspended'")
+    page.clock.run_for(60000)      # skip the slow walk, then let the phone put audio to sleep again just before the end
+    page.click('[data-fid=g-skip]')
+    page.evaluate("window.__ctx.state = 'suspended'")
+    page.clock.run_for(30000 - 1000)
+    page.clock.run_for(2000)
+    ok(page.evaluate('window.__resumes') > first, 'a sleeping audio engine is woken before a cue')
+    tones = tone_counts(page)
+    ok(tones[:3] == [880, 880, 880], 'beeps play: %s' % tones)
+    s.close()
+
+
+@test
+def sound_check_card(p):
+    s = Session(p, scripts=[AUDIO_SLEEPY], pause=True); s.consent(); page = s.page
+    s.tab('data')
+    st = page.inner_text('#sound-status')
+    ok('Sound engine:' in st and 'sound is ON' in st, 'status shown: ' + st)
+    page.click('[data-fid=sound-test]')
+    st = page.inner_text('#sound-status')
+    ok('running' in st and 'Alert mode: transient' in st, 'status after test: ' + st)
+    tones = tone_counts(page)
+    ok(tones == [880, 660, 880, 1320], 'a beep then a chime: %s' % tones)
+    page.click('[data-fid=sound-toggle]')
+    ok('OFF' in page.inner_text('#sound-status') and 'turn on' in page.inner_text('[data-fid=sound-toggle]'), 'toggle shows off')
+    ok(s.data()['prefs']['mute'] is True, 'remembered')
+    ok(not s.errors, s.errors)
+    s.close()
+
+
+@test
 def guided_finish_needs_confirmation_to_tick(p):
     s = Session(p, scripts=[AUDIO_MOCK], pause=True); s.consent(); page = s.page
     boxes = "input[id^='c-warmup.']"
@@ -995,8 +1045,8 @@ def service_worker_scope_and_offline(p):
         ok(all(k.startswith('mikeExercise.') for k in keys), 'only our prefixed keys exist: %s' % keys)
         card.close()
     caches = page.evaluate("()=>caches.keys()")
-    ok(caches == ['mikeExercise-v1'], 'cache names %s' % caches)
-    keys = page.evaluate("()=>caches.open('mikeExercise-v1').then(c=>c.keys()).then(k=>k.map(r=>new URL(r.url).pathname.split('/').pop()||'./'))")
+    ok(caches == ['mikeExercise-v2'], 'cache names %s' % caches)
+    keys = page.evaluate("()=>caches.open('mikeExercise-v2').then(c=>c.keys()).then(k=>k.map(r=>new URL(r.url).pathname.split('/').pop()||'./'))")
     for f in ('app.js', 'core.js', 'data.js', 'styles.css', 'manifest.webmanifest', 'icon-180.png', 'icon-512.png'):
         ok(f in keys, 'saved for offline: ' + f)
     s.close()
