@@ -177,6 +177,7 @@
   }
 
   function tone(freq, startAt, dur, vol) {
+    if (store.data.prefs.mute) return;          /* the sound-off setting silences every sound, whatever asked for it */
     var ctx = audio.ctx;
     var osc = ctx.createOscillator(), gain = ctx.createGain();
     osc.type = 'sine';
@@ -791,12 +792,14 @@
       store.data.prefs.mute = !store.data.prefs.mute; save();
       soundBtn.textContent = store.data.prefs.mute ? 'Sound is OFF - tap to turn on' : 'Sound is ON - tap to turn off';
       showSoundStatus();
+      toast(store.data.prefs.mute ? 'Sound is now OFF. Timers will be silent.' : 'Sound is now ON.');
     } });
     soundBtn.textContent = store.data.prefs.mute ? 'Sound is OFF - tap to turn on' : 'Sound is ON - tap to turn off';
     var soundCard = card('Sound check', 'Timers beep for the last 3 seconds and chime at the end. Tap the button and you should hear a beep, then a chime. If you hear nothing, turn up the volume with the side buttons while this page is open, and check the ring/silent switch.');
     soundCard.appendChild(el('div', { class: 'btn-row' },
       btn('Test sound', { kind: 'navy', fid: 'sound-test', onclick: function () {
         unlockAudio();
+        if (store.data.prefs.mute) { toast('Sound is OFF, so nothing will play. Tap the sound button below to turn it on.'); showSoundStatus(); return; }
         whenAudioReady(function () { tone(880, 0, 0.16, 0.7); tone(660, 0.6, 0.3, 0.8); tone(880, 0.88, 0.3, 0.8); tone(1320, 1.16, 0.8, 0.8); });
         showSoundStatus();
       } }), soundBtn));
