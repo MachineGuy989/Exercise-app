@@ -1,6 +1,5 @@
-/* Offline support for the exercise app ONLY.
- * This file lives in /exercise-app/, so its reach is limited to that folder.
- * It cannot see or change the card game, and it only touches caches named "mikeExercise-...". */
+/* Offline support for the exercise app.
+ * It only handles files inside its own folder and only touches caches named "mikeExercise-...". */
 var CACHE = 'mikeExercise-v1';
 var FILES = ['./', 'index.html', 'styles.css', 'data.js', 'core.js', 'app.js',
   'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
