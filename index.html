@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mike's Hybrid Strength, Balance &amp; Mobility Program (Age 50+)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#1B3A57">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mike's Program">
+<meta name="format-detection" content="telephone=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">Mike's Program</div>
+    <button type="button" class="safety-btn" id="safety-btn">⚠ Safety</button>
+  </header>
+  <div id="banners"></div>
+  <main id="main" tabindex="-1"></main>
+  <nav class="tabs" id="tabs" aria-label="Main">
+    <a href="#today" data-tab="today">Today</a>
+    <a href="#tracker" data-tab="tracker">Tracker</a>
+    <a href="#checkin" data-tab="checkin">Check-in</a>
+    <a href="#data" data-tab="data">Data</a>
+  </nav>
+</div>
+<div id="guided-root"></div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+<div id="live" class="sr-only" aria-live="polite"></div>
+<noscript><p style="padding:1rem;font-size:1.2rem">This app needs JavaScript turned on.</p></noscript>
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
